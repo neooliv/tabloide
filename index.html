@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<title>Gerador de Tabloide</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="stylesheet" href="css/styles.css" />
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas-pro@1.5.8/dist/html2canvas-pro.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="topbar">
+    <h1>Gerador de Tabloide</h1>
+    <ol class="steps" id="stepIndicator">
+      <li data-step="1" class="is-active">1. Produtos</li>
+      <li data-step="2">2. Conferir</li>
+      <li data-step="3">3. Exportar</li>
+    </ol>
+  </header>
+
+  <!-- ===================== ETAPA 1 ===================== -->
+  <section class="panel step" id="step1">
+    <h2>Como você quer inserir os produtos?</h2>
+
+    <div class="mode-switch">
+      <button class="mode-btn is-active" id="modeXlsxBtn" type="button">Importar planilha (.xlsx)</button>
+      <button class="mode-btn" id="modeManualBtn" type="button">Adicionar manualmente</button>
+    </div>
+
+    <div id="modeXlsx" class="mode-panel">
+      <div class="dropzone" id="xlsxDrop">
+        <p class="dz-title">Solte a planilha aqui ou clique para escolher</p>
+        <p class="dz-hint">Colunas reconhecidas automaticamente: <b>código/EAN</b>, <b>descrição</b>, <b>marca</b> e <b>preço</b> (em qualquer ordem, por nome do cabeçalho)</p>
+        <input type="file" id="xlsxInput" accept=".xlsx,.xls" hidden />
+      </div>
+      <p class="status" id="xlsxStatus" aria-live="polite"></p>
+    </div>
+
+    <div id="modeManual" class="mode-panel is-hidden">
+      <label for="qty">Quantos produtos você quer adicionar?</label>
+      <div class="row">
+        <input type="number" id="qty" min="1" max="60" value="12" />
+        <button class="btn primary" id="addManualBtn" type="button">Adicionar</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== ETAPA 2 ===================== -->
+  <section class="panel step is-hidden" id="step2">
+    <h2>Cabeçalho do tabloide</h2>
+    <div class="row wrap">
+      <div class="field">
+        <label for="hTitle">Título</label>
+        <input type="text" id="hTitle" placeholder="Ex: OFERTAS DE OUTUBRO" />
+      </div>
+      <div class="field">
+        <label for="hSubtitle">Subtítulo</label>
+        <input type="text" id="hSubtitle" placeholder="Ex: Confira nossas ofertas do mês!" />
+      </div>
+      <div class="field">
+        <label for="hColor">Cor de destaque</label>
+        <input type="color" id="hColor" value="#2f6fe0" />
+      </div>
+    </div>
+
+    <div class="row between">
+      <h2 class="no-margin">Produtos (<span id="productCount">0</span>)</h2>
+      <button class="btn secondary" id="addOneBtn" type="button">+ 1 produto</button>
+    </div>
+
+    <div id="productList" class="product-list"></div>
+
+    <div class="row between sticky-actions">
+      <button class="btn secondary" id="backTo1" type="button">Voltar</button>
+      <button class="btn primary" id="goTo3" type="button">Gerar tabloide</button>
+    </div>
+  </section>
+
+  <!-- ===================== ETAPA 3 ===================== -->
+  <section class="panel step is-hidden" id="step3">
+    <div class="row between sticky-actions">
+      <button class="btn secondary" id="backTo2" type="button">Editar</button>
+      <div class="row gap8">
+        <button class="btn secondary" id="btnPdf" type="button">Baixar PDF</button>
+        <button class="btn primary" id="btnPng" type="button">Baixar PNG</button>
+      </div>
+    </div>
+    <div id="pages" class="pages"></div>
+  </section>
+
+</div>
+
+<!-- ===================== EDITOR DE IMAGEM ===================== -->
+<div id="imgEditor" class="modal is-hidden">
+  <div class="modal-backdrop"></div>
+  <div class="modal-panel">
+    <h3>Ajustar imagem</h3>
+    <div class="editor-stage">
+      <canvas id="imgEditorCanvas" width="900" height="900"></canvas>
+    </div>
+    <div class="editor-toolbar">
+      <label class="zoom-label">Zoom
+        <input type="range" id="imgEditorRange" min="1" max="3" step="0.01" value="1" />
+      </label>
+      <div class="row gap8">
+        <button class="btn ghost" id="imgEditorReset" type="button">Resetar</button>
+        <button class="btn secondary" id="imgEditorCancel" type="button">Cancelar</button>
+        <button class="btn primary" id="imgEditorApply" type="button">Aplicar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== TEMPLATES ===================== -->
+<template id="productRowTpl">
+  <div class="prod-row" data-key="">
+    <button class="prod-thumb" type="button" title="Clique para escolher/editar a imagem">
+      <img alt="" hidden />
+      <span class="prod-thumb-hint">+ imagem</span>
+    </button>
+    <div class="prod-fields">
+      <input type="text" class="prod-desc" placeholder="Descrição do produto" maxlength="60" />
+      <div class="prod-price-row">
+        <span>R$</span>
+        <input type="text" class="prod-reais" inputmode="numeric" maxlength="4" placeholder="0" />
+        <span>,</span>
+        <input type="text" class="prod-cents" inputmode="numeric" maxlength="2" placeholder="00" />
+      </div>
+    </div>
+    <button class="prod-remove" type="button" title="Remover produto">&times;</button>
+  </div>
+</template>
+
+<template id="pageTpl">
+  <div class="page">
+    <header class="page-header">
+      <h2 class="page-title"></h2>
+      <p class="page-subtitle"></p>
+    </header>
+    <main class="page-grid"></main>
+    <footer class="page-footer">Ofertas válidas enquanto durarem os estoques.</footer>
+  </div>
+</template>
+
+<template id="cardTpl">
+  <article class="card">
+    <img class="card-img" src="" alt="" />
+    <div class="card-desc"></div>
+    <div class="card-price">
+      <span class="currency">R$</span>
+      <span class="value"></span>
+      <span class="cents"></span>
+    </div>
+  </article>
+</template>
+
+<script src="js/db.js"></script>
+<script src="js/editor.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
