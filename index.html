@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gerador de Tabloides</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#f1f3f6;
+    --panel:#181f2c;
+    --panel-2:#212a3b;
+    --accent:#3b6ef5;
+    --ink:#101521;
+    --muted:#8a93a6;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:'Segoe UI',Inter,Arial,sans-serif;background:var(--bg);color:var(--ink);}
+  .app{display:flex;min-height:100vh;}
+
+  /* SIDEBAR */
+  .sidebar{width:340px;flex:0 0 340px;background:#161c28;color:#e7eaf1;padding:18px 16px 60px;overflow-y:auto;max-height:100vh;position:sticky;top:0;}
+  .brand-title{font-size:15px;font-weight:700;letter-spacing:.03em;margin:0 0 2px;}
+  .brand-sub{font-size:11px;color:#8a93a6;margin:0 0 18px;}
+  .sec{background:#1e2635;border:1px solid #2a3346;border-radius:10px;padding:12px 13px;margin-bottom:12px;}
+  .sec h3{font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:#9aa5bd;margin:0 0 10px;font-weight:700;}
+  .sec label{display:block;font-size:11.5px;color:#c3cadb;margin:8px 0 4px;}
+  .sec label:first-child{margin-top:0;}
+  input[type=text],input[type=number],select,textarea{
+    width:100%;background:#111825;border:1px solid #303c54;color:#eef1f7;border-radius:6px;
+    padding:7px 8px;font-size:12.5px;font-family:inherit;
+  }
+  textarea{resize:vertical;min-height:40px;}
+  input[type=color]{width:36px;height:26px;padding:0;border:1px solid #303c54;border-radius:5px;background:#111825;cursor:pointer;}
+  .row{display:flex;gap:8px;align-items:center;}
+  .row > *{flex:1;}
+  .colorrow{display:flex;align-items:center;gap:8px;font-size:11.5px;color:#c3cadb;margin:8px 0 0;}
+  .colorrow input[type=color]{flex:0 0 36px;}
+  .btn{background:#2a3346;border:1px solid #384259;color:#eef1f7;border-radius:7px;padding:8px 10px;font-size:12px;cursor:pointer;font-weight:600;transition:.15s;}
+  .btn:hover{background:#333f57;}
+  .btn.primary{background:var(--accent);border-color:var(--accent);}
+  .btn.primary:hover{background:#5382ff;}
+  .btn.danger{background:#3a1f22;border-color:#5c2a2f;color:#ffb4b4;}
+  .btn.small{padding:5px 8px;font-size:11px;}
+  .btn.block{width:100%;margin-top:6px;}
+  .btn:disabled{opacity:.45;cursor:not-allowed;}
+  .filepick{border:1.5px dashed #384259;border-radius:8px;padding:12px 10px;text-align:center;font-size:12px;color:#9aa5bd;cursor:pointer;display:block;}
+  .filepick:hover{border-color:var(--accent);color:#cdd6ea;}
+  .status{font-size:11px;color:#78e0a4;margin-top:6px;line-height:1.5;}
+  .status.err{color:#ff9a9a;}
+  .search{margin-bottom:8px;}
+  .prodlist{max-height:240px;overflow-y:auto;border:1px solid #2a3346;border-radius:7px;}
+  .proditem{display:flex;gap:8px;align-items:center;padding:6px 8px;border-bottom:1px solid #232b3c;cursor:grab;font-size:11.5px;}
+  .proditem:last-child{border-bottom:none;}
+  .proditem:hover{background:#232c3f;}
+  .proditem .thumb{width:28px;height:28px;border-radius:5px;background:#0e131d center/contain no-repeat;flex:0 0 28px;border:1px solid #303c54;}
+  .proditem .meta{flex:1;overflow:hidden;}
+  .proditem .meta .d{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#eef1f7;font-weight:600;}
+  .proditem .meta .e{color:#8a93a6;font-size:10.5px;}
+  .proditem .p{color:#78c2ff;font-weight:700;font-size:11px;white-space:nowrap;}
+  .empty-note{font-size:11.5px;color:#6d7688;padding:8px 2px;}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+
+  /* MAIN */
+  .main{flex:1;padding:22px 26px 80px;overflow-x:auto;}
+  .topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;flex-wrap:wrap;gap:10px;}
+  .topbar h1{font-size:18px;margin:0;color:var(--ink);}
+
+  .page-block{margin:0 auto 34px;max-width:900px;}
+  .page-toolbar{display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:12px;flex-wrap:wrap;}
+  .page-toolbar .tag{background:#e2e6ee;color:#333;padding:3px 9px;border-radius:20px;font-weight:700;font-size:11px;}
+  .page-toolbar select{width:auto;padding:5px 8px;border-radius:6px;border:1px solid #ccc;font-size:12px;}
+
+  .a4-wrap{background:#fff;box-shadow:0 4px 22px rgba(0,0,0,.14);}
+  .a4-page{width:794px;height:1123px;position:relative;display:flex;flex-direction:column;overflow:hidden;font-family:'Segoe UI',Arial,sans-serif;}
+
+  .p-header{flex:0 0 100px;display:flex;align-items:center;justify-content:space-between;padding:0 26px;}
+  .p-header .h-logo{height:64px;width:64px;object-fit:contain;border-radius:8px;background:rgba(255,255,255,.14);padding:4px;}
+  .p-header .h-text{flex:1;padding-left:16px;}
+  .p-header .h-title{font-size:23px;font-weight:800;letter-spacing:.01em;line-height:1.15;}
+  .p-header .h-sub{font-size:12px;opacity:.85;margin-top:3px;}
+
+  /* DINAMIC GRID CONTAINER */
+  .p-grid{flex:1;display:grid;gap:10px;padding:16px 24px;}
+
+  .slot{border-radius:10px;overflow:hidden;display:flex;flex-direction:column;background:#fff;border:1px solid #e6e6e6;position:relative;}
+  .slot-empty{flex:1;display:flex;align-items:center;justify-content:center;color:#b7bcc6;font-size:10.5px;text-align:center;padding:8px;border:1.5px dashed #d8dce3;border-radius:8px;margin:4px;}
+  .slot.dragover .slot-empty, .slot.dragover .slot-image{outline:2px dashed var(--accent);outline-offset:-2px;}
+  .slot-image{flex:1;position:relative;background-size:contain;background-repeat:no-repeat;background-position:center;display:flex;align-items:center;justify-content:center;cursor:pointer;min-height:0;}
+  .img-placeholder{font-size:9.5px;color:#98a0ad;text-align:center;padding:6px;line-height:1.4;}
+  .price-badge{position:absolute;bottom:5px;right:5px;border-radius:50%;width:56px;height:56px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:800;font-size:10.5px;line-height:1.05;text-align:center;box-shadow:0 2px 6px rgba(0,0,0,.25);}
+  .price-badge .rs{font-size:8px;font-weight:700;}
+  .price-badge .val{font-size:12.5px;}
+  .price-badge .unit{font-size:6.5px;font-weight:600;opacity:.85;}
+  .slot-info{flex:0 0 auto;padding:6px 8px;display:flex;flex-direction:column;justify-content:center;gap:2px;}
+  .slot-desc{font-size:9.8px;font-weight:700;line-height:1.22;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+  .slot-ean{font-size:8px;opacity:.8;font-weight:600;}
+  .slot-remove{position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;border:none;font-size:12px;line-height:1;cursor:pointer;z-index:3;}
+
+  .p-footer{flex:0 0 50px;display:flex;align-items:center;justify-content:center;font-size:10.5px;text-align:center;padding:0 20px;line-height:1.35;}
+
+  ::-webkit-scrollbar{width:9px;height:9px;}
+  ::-webkit-scrollbar-thumb{background:#3a445c;border-radius:6px;}
+  .sidebar::-webkit-scrollbar-track{background:#161c28;}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <p class="brand-title">Gerador de Tabloides</p>
+    <p class="brand-sub">Monte encartes A4 a partir da planilha de produtos</p>
+
+    <div class="sec">
+      <h3>1 · Planilha de produtos</h3>
+      <label class="filepick">
+        📄 Clique para enviar .xlsx / .csv<br>
+        <span style="font-size:10px;">Colunas: CÓD.BARRA, CODIGO, MARCA...</span>
+        <input type="file" id="xlsxInput" accept=".xlsx,.xls,.csv" style="display:none;">
+      </label>
+      <div id="uploadStatus" class="status" style="display:none;"></div>
+    </div>
+
+    <div class="sec">
+      <h3>2 · Pasta de imagens (Automático)</h3>
+      <label class="filepick">
+        📁 Selecionar pasta de fotos do computador<br>
+        <span style="font-size:10px;">Associa fotos pelo CÓD.BARRA ou CÓDIGO</span>
+        <input type="file" id="folderInput" webkitdirectory directory multiple style="display:none;">
+      </label>
+      <div id="folderStatus" class="status" style="display:none;"></div>
+    </div>
+
+    <div class="sec">
+      <h3>3 · Marca selecionada</h3>
+      <select id="brandSelect"><option value="">— envie a planilha —</option></select>
+      <label style="margin-top:10px;">Buscar produto na marca</label>
+      <input type="text" id="prodSearch" class="search" placeholder="Nome ou Código...">
+      <div class="prodlist" id="prodList"><div class="empty-note">Nenhum produto ainda.</div></div>
+    </div>
+
+    <div class="sec">
+      <h3>4 · Cabeçalho da marca</h3>
+      <label>Título</label>
+      <input type="text" id="hdrTitle" placeholder="Nome da marca">
+      <label>Subtítulo / chamada</label>
+      <input type="text" id="hdrSub" placeholder="Ex: Ofertas válidas enquanto durarem os estoques">
+      <div class="row" style="margin-top:8px;">
+        <div class="colorrow"><input type="color" id="hdrBg"><span>Fundo</span></div>
+        <div class="colorrow"><input type="color" id="hdrText"><span>Texto</span></div>
+      </div>
+      <label style="margin-top:10px;">Logo da marca (opcional)</label>
+      <input type="file" id="hdrLogoInput" accept="image/*">
+    </div>
+
+    <div class="sec">
+      <h3>5 · Rodapé padrão</h3>
+      <label>Texto do rodapé</label>
+      <textarea id="footerText">Distriam Distribuição • Uberlândia/MG • Consulte condições comerciais e prazo de validade das ofertas</textarea>
+      <div class="row" style="margin-top:8px;">
+        <div class="colorrow"><input type="color" id="footerBg"><span>Fundo</span></div>
+        <div class="colorrow"><input type="color" id="footerText2"><span>Texto</span></div>
+      </div>
+    </div>
+
+    <div class="sec">
+      <h3>6 · Cores dos destaques</h3>
+      <div class="grid2">
+        <div class="colorrow"><input type="color" id="cardBg"><span>Fundo da imagem</span></div>
+        <div class="colorrow"><input type="color" id="pageBg"><span>Fundo da página</span></div>
+        <div class="colorrow"><input type="color" id="infoBg"><span>Fundo CÓD/desc.</span></div>
+        <div class="colorrow"><input type="color" id="infoText"><span>Texto CÓD/desc.</span></div>
+        <div class="colorrow"><input type="color" id="priceBg"><span>Fundo do preço</span></div>
+        <div class="colorrow"><input type="color" id="priceText"><span>Texto do preço</span></div>
+      </div>
+    </div>
+
+    <div class="sec">
+      <h3>7 · Gerar Páginas</h3>
+      <button class="btn block primary" id="generateAllPagesBtn">✨ Gerar TODAS as páginas da marca</button>
+      <button class="btn block" id="addSinglePageBtn" style="margin-top:6px;">+ Adicionar 1 página vazia</button>
+      <button class="btn block danger" id="clearAllPagesBtn" style="margin-top:6px;">🗑️ Limpar todas páginas</button>
+    </div>
+
+    <div class="sec">
+      <h3>8 · Exportar</h3>
+      <button class="btn export block" id="exportPngBtn">⬇ Exportar PNG (uma por página)</button>
+      <button class="btn export pdf block" id="exportPdfBtn">⬇ Exportar PDF (documento completo)</button>
+      <div id="exportStatus" class="status" style="display:none;"></div>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div class="main">
+    <div class="topbar">
+      <h1>Pré-visualização do tabloide</h1>
+    </div>
+    <div id="pagesContainer"></div>
+  </div>
+
+</div>
+
+<input type="file" id="hiddenImgInput" accept="image/*" style="display:none;">
+
+<script>
+/* ============ STATE ============ */
+const state = {
+  products: [],
+  brands: [],
+  selectedBrand: '',
+  brandHeaders: {},
+  imagesMap: new Map(),
+  footer: {
+    text: 'Distriam Distribuição • Uberlândia/MG • Consulte condições comerciais e prazo de validade das ofertas',
+    bg: '#111827', textColor: '#ffffff'
+  },
+  style: {
+    cardBg: '#f4efe6', pageBg: '#ffffff',
+    infoBg: '#1f2937', infoText: '#ffffff',
+    priceBg: '#c0392b', priceText: '#ffffff'
+  },
+  pages: []
+};
+
+let dragImageTarget = null;
+
+/* ============ HELPERS ============ */
+function uid(){ return Math.random().toString(36).slice(2,10); }
+function fmtPrice(v){
+  const n = Number(v)||0;
+  return n.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+}
+function normHeader(s){
+  return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+}
+function findCol(headers, candidates){
+  const norm = headers.map(normHeader);
+  for(const cand of candidates){
+    const idx = norm.findIndex(h => h === cand);
+    if(idx !== -1) return idx;
+  }
+  for(const cand of candidates){
+    const idx = norm.findIndex(h => h.includes(cand));
+    if(idx !== -1) return idx;
+  }
+  return -1;
+}
+function defaultHeaderFor(brand){
+  const palette = ['#1f2937','#7c2d12','#0f4c3a','#3b1f5e','#8a1c2b','#0c4a6e'];
+  const bg = palette[Math.abs(hashStr(brand)) % palette.length];
+  return { title: brand, sub: 'Ofertas válidas enquanto durarem os estoques', bg, text:'#ffffff', logo:null };
+}
+function hashStr(s){ let h=0; for(let i=0;i<s.length;i++){h=(h<<5)-h+s.charCodeAt(i); h|=0;} return h; }
+
+function calculateGrid(count){
+  if(count <= 1) return {cols: 1, rows: 1};
+  if(count <= 2) return {cols: 1, rows: 2};
+  if(count <= 4) return {cols: 2, rows: 2};
+  if(count <= 6) return {cols: 2, rows: 3};
+  if(count <= 8) return {cols: 2, rows: 4};
+  if(count <= 9) return {cols: 3, rows: 3};
+  return {cols: 4, rows: 3};
+}
+
+/* ============ FILE UPLOAD ============ */
+document.querySelectorAll('.filepick').forEach(fp=>{
+  fp.addEventListener('click', e=>{
+    const input = fp.querySelector('input');
+    if(input && e.target !== input) input.click();
+  });
+});
+
+document.getElementById('xlsxInput').addEventListener('change', async (e)=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  const statusEl = document.getElementById('uploadStatus');
+  statusEl.style.display='block'; statusEl.className='status'; statusEl.textContent = 'Lendo planilha...';
+  try{
+    const data = await file.arrayBuffer();
+    const wb = XLSX.read(data, {type:'array'});
+    const sheet = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(sheet, {header:1, raw:true, defval:''});
+    if(rows.length < 2) throw new Error('Planilha vazia ou sem linhas de dados.');
+    const headers = rows[0];
+    
+    const eanIdx = findCol(headers, ['CODBARRA', 'BARRA', 'EAN', 'CODIGOBARRA']);
+    const codeIdx = findCol(headers, ['CODIGO', 'COD', 'ID']);
+    const marcaIdx = findCol(headers, ['MARCA', 'BRAND', 'FABRICANTE']);
+    const descIdx = findCol(headers, ['DESCRICAODOPRODUTO', 'DESCRICAO', 'PRODUTO', 'NOME']);
+    const valorIdx = findCol(headers, ['PCLIQ', 'LIQST', 'VALOR', 'PRECO']);
+    
+    const products = [];
+    for(let i=1;i<rows.length;i++){
+      const r = rows[i];
+      if(!r || r.every(c=>c==='' || c==null)) continue;
+      
+      const ean = eanIdx !== -1 ? String(r[eanIdx]??'').trim() : '';
+      const code = codeIdx !== -1 ? String(r[codeIdx]??'').trim() : '';
+      const descricao = descIdx !== -1 ? String(r[descIdx]??'').trim() : '';
+      
+      if(!ean && !code && !descricao) continue;
+      
+      const marca = marcaIdx!==-1 && String(r[marcaIdx]??'').trim() !== '' ? String(r[marcaIdx]).trim() : 'GERAL';
+      
+      let valor = valorIdx !== -1 ? r[valorIdx] : 0;
+      if(typeof valor === 'string') valor = Number(valor.replace(/[^\d,.-]/g,'').replace('.','').replace(',','.')) || Number(valor.replace(/[^\d.,-]/g,'')) || 0;
+      
+      let img = state.imagesMap.get(normHeader(ean)) || state.imagesMap.get(normHeader(code)) || null;
+
+      products.push({ id: uid(), ean: ean || code, code, marca, descricao, valor: Number(valor)||0, image: img });
+    }
+    
+    if(products.length===0) throw new Error('Nenhum produto válido encontrado na planilha.');
+    
+    state.products = products;
+    state.brands = [...new Set(products.map(p=>p.marca))].sort((a,b)=>a.localeCompare(b));
+    state.brands.forEach(b=>{ if(!state.brandHeaders[b]) state.brandHeaders[b] = defaultHeaderFor(b); });
+    state.selectedBrand = state.brands[0] || '';
+    
+    statusEl.textContent = `✔ ${products.length} produtos em ${state.brands.length} marca(s).`;
+    renderBrandSelect();
+    renderHeaderFields();
+    renderProductList();
+    generateAllPagesForBrand(state.selectedBrand);
+  }catch(err){
+    statusEl.className='status err';
+    statusEl.textContent = '✖ ' + err.message;
+  }
+});
+
+document.getElementById('folderInput').addEventListener('change', async (e)=>{
+  const files = Array.from(e.target.files);
+  const statusEl = document.getElementById('folderStatus');
+  statusEl.style.display = 'block';
+  statusEl.className = 'status';
+  
+  const imgFiles = files.filter(f=>f.type.startsWith('image/'));
+  if(imgFiles.length === 0){
+    statusEl.className = 'status err';
+    statusEl.textContent = '✖ Nenhuma imagem encontrada na pasta.';
+    return;
+  }
+
+  statusEl.textContent = `Vincular ${imgFiles.length} imagens...`;
+  let linked = 0;
+
+  for(const file of imgFiles){
+    const fname = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
+    const cleanKey = normHeader(fname);
+    
+    const reader = new FileReader();
+    const dataUrl = await new Promise(res=>{
+      reader.onload = () => res(reader.result);
+      reader.readAsDataURL(file);
+    });
+
+    state.imagesMap.set(cleanKey, dataUrl);
+
+    state.products.forEach(p=>{
+      if(normHeader(p.ean) === cleanKey || normHeader(p.code) === cleanKey){
+        p.image = dataUrl;
+        linked++;
+      }
+    });
+  }
+
+  statusEl.textContent = `✔ ${linked} produto(s) vinculados com imagens!`;
+  renderProductList();
+  renderPages();
+});
+
+/* ============ BRAND / HEADER UI ============ */
+function renderBrandSelect(){
+  const sel = document.getElementById('brandSelect');
+  sel.innerHTML = state.brands.map(b=>`<option value="${escAttr(b)}">${escHtml(b)} (${state.products.filter(p=>p.marca===b).length} prods)</option>`).join('');
+  sel.value = state.selectedBrand;
+}
+document.getElementById('brandSelect').addEventListener('change', e=>{
+  state.selectedBrand = e.target.value;
+  renderHeaderFields();
+  renderProductList();
+});
+function renderHeaderFields(){
+  const h = state.brandHeaders[state.selectedBrand] || defaultHeaderFor(state.selectedBrand||'');
+  document.getElementById('hdrTitle').value = h.title||'';
+  document.getElementById('hdrSub').value = h.sub||'';
+  document.getElementById('hdrBg').value = h.bg||'#1f2937';
+  document.getElementById('hdrText').value = h.text||'#ffffff';
+}
+function currentHeaderObj(){
+  if(!state.selectedBrand) return null;
+  if(!state.brandHeaders[state.selectedBrand]) state.brandHeaders[state.selectedBrand] = defaultHeaderFor(state.selectedBrand);
+  return state.brandHeaders[state.selectedBrand];
+}
+['hdrTitle','hdrSub','hdrBg','hdrText'].forEach(id=>{
+  document.getElementById(id).addEventListener('input', ()=>{
+    const h = currentHeaderObj(); if(!h) return;
+    h.title = document.getElementById('hdrTitle').value;
+    h.sub = document.getElementById('hdrSub').value;
+    h.bg = document.getElementById('hdrBg').value;
+    h.text = document.getElementById('hdrText').value;
+    renderPages();
+  });
+});
+document.getElementById('hdrLogoInput').addEventListener('change', e=>{
+  const file = e.target.files[0]; if(!file) return;
+  const h = currentHeaderObj(); if(!h) return;
+  const reader = new FileReader();
+  reader.onload = ()=>{ h.logo = reader.result; renderPages(); };
+  reader.readAsDataURL(file);
+});
+
+/* ============ FOOTER / STYLE UI ============ */
+document.getElementById('footerText').value = state.footer.text;
+document.getElementById('footerBg').value = state.footer.bg;
+document.getElementById('footerText2').value = state.footer.textColor;
+document.getElementById('footerBg').addEventListener('input', e=>{ state.footer.bg=e.target.value; renderPages(); });
+document.getElementById('footerText2').addEventListener('input', e=>{ state.footer.textColor=e.target.value; renderPages(); });
+document.getElementById('footerText').addEventListener('input', e=>{ state.footer.text = e.target.value; renderPages(); });
+
+['cardBg','pageBg','infoBg','infoText','priceBg','priceText'].forEach(id=>{
+  document.getElementById(id).value = state.style[id];
+  document.getElementById(id).addEventListener('input', e=>{
+    state.style[id] = e.target.value;
+    renderPages();
+  });
+});
+
+/* ============ PRODUCT LIST ============ */
+function renderProductList(){
+  const list = document.getElementById('prodList');
+  const q = normHeader(document.getElementById('prodSearch').value);
+  const items = state.products.filter(p=>p.marca===state.selectedBrand)
+    .filter(p=> !q || normHeader(p.descricao).includes(q) || normHeader(p.ean).includes(q) || normHeader(p.code).includes(q));
+  if(items.length===0){ list.innerHTML = '<div class="empty-note">Nenhum produto encontrado.</div>'; return; }
+  list.innerHTML = items.map(p=>`
+    <div class="proditem" draggable="true" data-pid="${p.id}">
+      <div class="thumb" style="${p.image?`background-image:url(${p.image})`:''}"></div>
+      <div class="meta">
+        <div class="d">${escHtml(p.descricao)}</div>
+        <div class="e">CÓD ${escHtml(p.ean)}</div>
+      </div>
+      <div class="p">R$ ${fmtPrice(p.valor)}</div>
+    </div>`).join('');
+  list.querySelectorAll('.proditem').forEach(el=>{
+    el.addEventListener('dragstart', e=>{
+      e.dataTransfer.setData('text/plain', JSON.stringify({type:'product', pid: el.dataset.pid}));
+      e.dataTransfer.effectAllowed = 'copy';
+    });
+  });
+}
+document.getElementById('prodSearch').addEventListener('input', renderProductList);
+
+/* ============ PAGES LOGIC ============ */
+
+// GERAR TODAS AS PÁGINAS DE UMA MARCA AUTOMATICAMENTE
+function generateAllPagesForBrand(brand){
+  if(!brand) return;
+  const brandProds = state.products.filter(p => p.marca === brand);
+  if(brandProds.length === 0){
+    alert('Nenhum produto encontrado para essa marca.');
+    return;
+  }
+
+  // Remove páginas antigas da mesma marca
+  state.pages = state.pages.filter(p => p.brand !== brand);
+
+  const chunkSize = 12;
+  for (let i = 0; i < brandProds.length; i += chunkSize) {
+    const chunk = brandProds.slice(i, i + chunkSize);
+    const slots = chunk.map(p => ({ productId: p.id }));
+    
+    state.pages.push({
+      brand: brand,
+      slots: slots
+    });
+  }
+
+  renderPages();
+}
+
+document.getElementById('generateAllPagesBtn').addEventListener('click', ()=>{
+  generateAllPagesForBrand(state.selectedBrand);
+});
+
+document.getElementById('addSinglePageBtn').addEventListener('click', ()=>{
+  state.pages.push({ brand: state.selectedBrand, slots: Array.from({length: 12}, ()=>({productId:null})) });
+  renderPages();
+});
+
+document.getElementById('clearAllPagesBtn').addEventListener('click', ()=>{
+  if(confirm('Tem certeza que deseja apagar todas as páginas?')){
+    state.pages = [];
+    renderPages();
+  }
+});
+
+function removePage(idx){ state.pages.splice(idx,1); renderPages(); }
+function clearPage(idx){ state.pages[idx].slots = Array.from({length: state.pages[idx].slots.length}, ()=>({productId:null})); renderPages(); }
+
+function autoFillPage(idx){
+  const page = state.pages[idx];
+  const used = new Set();
+  state.pages.forEach(pg=>pg.slots.forEach(s=>{ if(s.productId) used.add(s.productId); }));
+  const pool = state.products.filter(p=>p.marca===page.brand && !used.has(p.id));
+  
+  if(pool.length > 0 && pool.length < 12){
+    page.slots = Array.from({length: pool.length}, ()=>({productId:null}));
+  }
+  
+  let pi=0;
+  page.slots.forEach(s=>{
+    if(!s.productId && pi<pool.length){ s.productId = pool[pi].id; pi++; }
+  });
+  renderPages();
+}
+
+function getProduct(id){ return state.products.find(p=>p.id===id); }
+
+function renderPages(){
+  const cont = document.getElementById('pagesContainer');
+  if(state.pages.length===0){
+    cont.innerHTML = '<div class="empty-note" style="font-size:13px;color:#8a93a6;padding:40px;text-align:center;">Selecione a marca e clique em "Gerar TODAS as páginas da marca" para criar o encarte.</div>';
+    return;
+  }
+  cont.innerHTML = state.pages.map((page, pIdx)=>{
+    const hdr = state.brandHeaders[page.brand] || defaultHeaderFor(page.brand||'Marca');
+    const totalSlots = page.slots.length;
+    const {cols, rows} = calculateGrid(totalSlots);
+
+    const slotsHtml = page.slots.map((slot, sIdx)=>{
+      const prod = slot.productId ? getProduct(slot.productId) : null;
+      if(!prod){
+        return `<div class="slot" data-page="${pIdx}" data-idx="${sIdx}">
+          <div class="slot-empty">Arraste um produto aqui</div>
+        </div>`;
+      }
+      return `<div class="slot" data-page="${pIdx}" data-idx="${sIdx}">
+        <div class="slot-image" data-page="${pIdx}" data-idx="${sIdx}"
+             style="background-color:${state.style.cardBg};${prod.image?`background-image:url(${prod.image})`:''}">
+          ${!prod.image ? '<div class="img-placeholder">🖼️ Clique para carregar<br>imagem local</div>' : ''}
+          <div class="price-badge" style="background:${state.style.priceBg};color:${state.style.priceText}">
+            <span class="rs">R$</span><span class="val">${fmtPrice(prod.valor)}</span><span class="unit">cada</span>
+          </div>
+        </div>
+        <button class="slot-remove" data-page="${pIdx}" data-idx="${sIdx}" title="Remover produto">×</button>
+        <div class="slot-info" style="background:${state.style.infoBg};color:${state.style.infoText}">
+          <div class="slot-desc">${escHtml(prod.descricao)}</div>
+          <div class="slot-ean">CÓD ${escHtml(prod.ean)}</div>
+        </div>
+      </div>`;
+    }).join('');
+
+    return `
+    <div class="page-block">
+      <div class="page-toolbar">
+        <span class="tag">Página ${pIdx+1}</span>
+        <select data-page="${pIdx}" class="pageBrandSel">
+          ${state.brands.map(b=>`<option value="${escAttr(b)}" ${b===page.brand?'selected':''}>${escHtml(b)} (${state.products.filter(p=>p.marca===b).length} prods)</option>`).join('')}
+        </select>
+        <button class="btn small" data-act="fill" data-page="${pIdx}">Preencher automático</button>
+        <button class="btn small" data-act="clear" data-page="${pIdx}">Limpar</button>
+        <button class="btn small danger" data-act="remove" data-page="${pIdx}">Remover página</button>
+      </div>
+      <div class="a4-wrap">
+        <div class="a4-page" id="page-${pIdx}" style="background:${state.style.pageBg};">
+          <div class="p-header" style="background:${hdr.bg};color:${hdr.text};">
+            ${hdr.logo ? `<img class="h-logo" src="${hdr.logo}">` : ''}
+            <div class="h-text">
+              <div class="h-title">${escHtml(hdr.title||page.brand)}</div>
+              <div class="h-sub">${escHtml(hdr.sub||'')}</div>
+            </div>
+          </div>
+          <div class="p-grid" style="grid-template-columns: repeat(${cols}, 1fr); grid-template-rows: repeat(${rows}, 1fr);">
+            ${slotsHtml}
+          </div>
+          <div class="p-footer" style="background:${state.footer.bg};color:${state.footer.textColor};">
+            ${escHtml(state.footer.text)}
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  attachPageEvents();
+}
+
+function attachPageEvents(){
+  document.querySelectorAll('.pageBrandSel').forEach(sel=>{
+    sel.addEventListener('change', e=>{
+      const pIdx = +sel.dataset.page;
+      state.pages[pIdx].brand = e.target.value;
+      autoFillPage(pIdx);
+    });
+  });
+  document.querySelectorAll('[data-act]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const idx = +btn.dataset.page;
+      if(btn.dataset.act==='fill') autoFillPage(idx);
+      if(btn.dataset.act==='clear') clearPage(idx);
+      if(btn.dataset.act==='remove') removePage(idx);
+    });
+  });
+  document.querySelectorAll('.slot-remove').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const p = +btn.dataset.page, i = +btn.dataset.idx;
+      state.pages[p].slots[i].productId = null;
+      renderPages();
+    });
+  });
+  document.querySelectorAll('.slot').forEach(el=>{
+    el.addEventListener('dragover', e=>{ e.preventDefault(); el.classList.add('dragover'); });
+    el.addEventListener('dragleave', ()=> el.classList.remove('dragover'));
+    el.addEventListener('drop', e=>{
+      e.preventDefault(); el.classList.remove('dragover');
+      const p = +el.dataset.page, i = +el.dataset.idx;
+      const raw = e.dataTransfer.getData('text/plain');
+      let payload = null;
+      try{ payload = JSON.parse(raw); }catch(_e){}
+      if(payload && payload.type==='product'){
+        state.pages[p].slots[i].productId = payload.pid;
+        renderPages();
+        return;
+      }
+      if(e.dataTransfer.files && e.dataTransfer.files.length){
+        assignImageFromFile(p, i, e.dataTransfer.files[0]);
+      }
+    });
+  });
+  document.querySelectorAll('.slot-image').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      const p = +el.dataset.page, i = +el.dataset.idx;
+      if(!state.pages[p].slots[i].productId) return;
+      dragImageTarget = {page:p, idx:i};
+      document.getElementById('hiddenImgInput').click();
+    });
+  });
+}
+
+function assignImageFromFile(pIdx, sIdx, file){
+  if(!file.type.startsWith('image/')) return;
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    const pid = state.pages[pIdx].slots[sIdx].productId;
+    const prod = getProduct(pid);
+    if(prod){ prod.image = reader.result; renderPages(); renderProductList(); }
+  };
+  reader.readAsDataURL(file);
+}
+
+document.getElementById('hiddenImgInput').addEventListener('change', e=>{
+  const file = e.target.files[0];
+  if(file && dragImageTarget) assignImageFromFile(dragImageTarget.page, dragImageTarget.idx, file);
+  e.target.value = '';
+  dragImageTarget = null;
+});
+
+/* ============ EXPORT ============ */
+document.getElementById('exportPdfBtn').addEventListener('click', async ()=>{
+  if(state.pages.length===0){ alert('Adicione ao menos uma página antes de exportar.'); return; }
+  const statusEl = document.getElementById('exportStatus');
+  statusEl.style.display='block'; statusEl.className='status'; statusEl.textContent='Gerando PDF...';
+  try{
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({unit:'mm', format:'a4', orientation:'portrait'});
+    const els = document.querySelectorAll('.a4-page');
+    for(let i=0;i<els.length;i++){
+      statusEl.textContent = `Gerando PDF... página ${i+1}/${els.length}`;
+      const canvas = await html2canvas(els[i], {scale:2.5, useCORS:true, backgroundColor:'#ffffff'});
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      if(i>0) doc.addPage();
+      doc.addImage(imgData, 'JPEG', 0, 0, 210, 297);
+    }
+    doc.save('tabloide.pdf');
+    statusEl.textContent = '✔ PDF gerado com sucesso.';
+  }catch(err){
+    statusEl.className='status err'; statusEl.textContent = '✖ Erro ao gerar PDF: '+err.message;
+  }
+});
+document.getElementById('exportPngBtn').addEventListener('click', async ()=>{
+  if(state.pages.length===0){ alert('Adicione ao menos uma página antes de exportar.'); return; }
+  const statusEl = document.getElementById('exportStatus');
+  statusEl.style.display='block'; statusEl.className='status'; statusEl.textContent='Gerando PNG...';
+  try{
+    const els = document.querySelectorAll('.a4-page');
+    for(let i=0;i<els.length;i++){
+      statusEl.textContent = `Gerando PNG... página ${i+1}/${els.length}`;
+      const canvas = await html2canvas(els[i], {scale:2.5, useCORS:true, backgroundColor:'#ffffff'});
+      await new Promise(res=>{
+        canvas.toBlob(blob=>{
+          const a = document.createElement('a');
+          a.href = URL.createObjectURL(blob);
+          a.download = `tabloide_pagina_${i+1}.png`;
+          document.body.appendChild(a); a.click(); a.remove();
+          setTimeout(res, 350);
+        }, 'image/png');
+      });
+    }
+    statusEl.textContent = '✔ PNG(s) gerado(s) com sucesso.';
+  }catch(err){
+    statusEl.className='status err'; statusEl.textContent = '✖ Erro ao gerar PNG: '+err.message;
+  }
+});
+
+/* ============ UTIL ============ */
+function escHtml(s){ return String(s??'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function escAttr(s){ return escHtml(s); }
+
+renderPages();
+</script>
+</body>
+</html>
